@@ -206,6 +206,32 @@ button:hover {
     font-style: italic;
 }
 
+.big-toggle-btn {
+    border: 2px solid #ddd;
+    background: #f0f0f0; /* Light gray default */
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.3s ease, border-color 0.3s ease;
+    font-size: 16px;
+    color: black;
+
+    /* Center the text properly */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+	flex: 0.25;
+}
+
+.big-toggle-btn:hover {
+    background: #e0e0e0; /* Slightly darker on hover */
+}
+
+.big-toggle-btn.active {
+    background: #a0a0a0; /* Medium gray when active */
+    border-color: #a0a0a0;
+}
+
 /* Accordion Button */
 .accordion-btn {
     width: 100%;
@@ -240,6 +266,11 @@ button:hover {
     font-size: 1rem;
     color: #333;
     text-align: center;
+}
+
+/* Hidden Canvas for Font Size Measurement */
+#fontCanvas {
+    display: none;
 }
 
 /* Responsive Layout */

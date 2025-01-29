@@ -30,46 +30,91 @@ function convertAlignment(position) {
     }
 }
 
-function convertSrtToAssEvents(srtContent) {
-    const lines = srtContent.split('\n');
-    let events = '';
-    let start, end, text = '';
-    let lastEndTime = '00:00:00.000'; // Default in case no subtitles exist
+function parseSrt(srtContent) {
+    const lines = srtContent.split("\n");
+    const subtitles = [];
+    let start, end, text = "";
 
     for (let i = 0; i < lines.length; i++) {
         if (/^\d+$/.test(lines[i])) { // Skip index lines
             if (text) { 
-                events += `Dialogue: 0,${start},${end},Default,,0,0,0,,${text.trim()}\n`;
+                subtitles.push({ start, end, text: text.trim() });
                 text = ''; // Reset
             }
             continue;
         }
 
         if (/-->/.test(lines[i])) { // Timecode line
-            [start, end] = lines[i].split(' --> ').map(convertTime);
-            lastEndTime = end; // Update last subtitle end time
-        } else if (lines[i].trim() === '') { // Empty line = end of subtitle block
+            [start, end] = lines[i].split(" --> ").map(convertTime);
+        } else if (lines[i].trim() === "") { // Empty line = end of subtitle block
             if (text) {
-                events += `Dialogue: 0,${start},${end},Default,,0,0,0,,${text.trim()}\n`;
+                subtitles.push({ start, end, text: text.trim() });
                 text = ''; // Reset
             }
-        } else { 
-            text += (text ? '\\N' : '') + lines[i].trim();
+        } else {
+            text += (text ? "\\N" : "") + lines[i].trim();
         }
     }
 
-    // Add last subtitle to events if missed
+    // Add last subtitle if missed
     if (text) {
-        events += `Dialogue: 0,${start},${end},Default,,0,0,0,,${text.trim()}\n`;
+        subtitles.push({ start, end, text: text.trim() });
     }
 
-    return { events, lastEndTime };
+    return subtitles;
 }
 
 function convertTime(time) {
     const [h, m, s] = time.split(':');
     const [seconds, ms] = s.split(',');
     return `${h}:${m}:${seconds}.${ms}`;
+}
+
+function timeToMilliseconds(time) {
+    const [h, m, s] = time.split(":");
+    const [seconds, ms] = s.split(".");
+    return (parseInt(h) * 3600 + parseInt(m) * 60 + parseInt(seconds)) * 1000 + parseInt(ms);
+}
+
+function convertToAss(subtitles, fadeMS, highlight, normalColor, highlightColor) {
+    let assEvents = "";
+    const wordFadeInOut = 50; // Fade transition time for word highlights
+
+    subtitles.forEach(({ start, end, text }, index) => {
+        const startTimeMS = timeToMilliseconds(start);
+        const endTimeMS = timeToMilliseconds(end);
+
+        // Calculate fade-in time based on previous line
+        const prevEndTimeMS = index > 0 ? timeToMilliseconds(subtitles[index - 1].end) : 0;
+        const actualFadeIn = Math.round(Math.min(fadeMS, startTimeMS - prevEndTimeMS));
+
+        // Calculate fade-out time based on next line
+        const nextStartTimeMS = index < subtitles.length - 1 ? timeToMilliseconds(subtitles[index + 1].start) : Infinity;
+        const actualFadeOut = Math.round(Math.min(fadeMS, nextStartTimeMS - endTimeMS));
+
+        // Construct the fade tag dynamically
+        const fadeTag = `{\\fad(${actualFadeIn},${actualFadeOut})}`;
+
+        if (highlight === "1") {
+            const words = text.split(/\s+/);
+            if (words.length === 0) return;
+
+            const totalDuration = endTimeMS - startTimeMS;
+            const highlightDuration = totalDuration / words.length; // Time per word
+
+            let formattedText = words.map((word, wordIndex) => {
+                const wordStart = Math.round(wordIndex * highlightDuration);
+                const wordEnd = Math.round(wordStart + highlightDuration);
+                return `{\\t(${wordStart},${wordEnd},\\1c${convertColor(highlightColor)})}${word}{\\t(${wordEnd},${wordEnd + wordFadeInOut},\\1c${convertColor(normalColor)})}`;
+            }).join(" ");
+
+            assEvents += `Dialogue: 0,${start},${end},Default,,0,0,0,,${fadeTag}${formattedText}\n`;
+        } else {
+            assEvents += `Dialogue: 0,${start},${end},Default,,0,0,0,,${fadeTag}${text}\n`;
+        }
+    });
+
+    return assEvents;
 }
 
 const app = express();
@@ -88,7 +133,8 @@ app.post('/upload', upload.single('srt'), async (req, res) => {
     const {
         fontFamily, fontSize, fontColor,
         bold, italic, outline, outlineColor, shadow, spacing, borderStyle, 
-		secondaryColor, backgroundColor, angle, position, marginL, marginR, marginV
+		secondaryColor, backgroundColor, angle, position, marginL, marginR, marginV,
+		fade, highlight
     } = req.body;
 	
     const srtPath = req.file.path;
@@ -114,8 +160,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     // Convert SRT to ASS and get the last subtitle's end time
     console.log(`Converting ${req.file.originalname} from SRT ${srtPath} -> ASS ${assPath}`);
     const srtContent = fs.readFileSync(srtPath, 'utf-8');
-    const { events, lastEndTime } = convertSrtToAssEvents(srtContent);
-	fs.writeFileSync(assPath, assStyle + events, 'utf-8');
+	const parsedEvents = parseSrt(srtContent);
+	const assEvents = convertToAss(parsedEvents, fade, highlight, fontColor, secondaryColor);
+	const lastEndTime = parsedEvents.length > 0 ? parsedEvents[parsedEvents.length - 1].end : "00:00:00.000";
+	fs.writeFileSync(assPath, assStyle + assEvents, 'utf-8');
 
     // Calculate video duration (last subtitle end time + 5 seconds)
     const [h, m, s] = lastEndTime.split(':');
@@ -136,6 +184,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 			'-preset ultrafast',  // Use the least compression for max speed
 			'-b:v 3M',            // Allow a higher bitrate for better performance
 			'-pix_fmt yuv420p',    // This format supports subtitle rendering, some don't.
+			'-tune zerolatency',   // Eliminates buffering delays
 			'-movflags faststart' // Optimize MP4 playback without rewriting the whole file
 		])
 		.on('start', (command) => console.log(`FFmpeg command: ${command}`))
@@ -151,18 +200,25 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             fileStream.pipe(res);
 
             fileStream.on('close', () => {
-                fs.unlinkSync(srtPath);
-                fs.unlinkSync(assPath);
+//                fs.unlinkSync(srtPath);
+//                fs.unlinkSync(assPath);
                 fs.unlinkSync(outputPath);
             });
 		})
-		.on('error', (err) => res.status(500).send('Error processing video: ' + err.message))
+        .on("error", (err) => { 
+				console.log("Error generating preview: " + err.message);
+				res.status(500).send("Error generating preview: " + err.message); 
+			})
 		.run();
 });
 
 // Live preview of what the settings do to subtitles.
 app.get("/preview", async (req, res) => {
-    const { text, font, size, color, secondaryColor, outline, outlineColor, backgroundColor, shadow, shadowColor, position, borderStyle, spacing, angle, bold, italic, marginL, marginR, marginV } = req.query;
+    const { 
+		text, font, size, color, secondaryColor, outline, outlineColor, backgroundColor, 
+		shadow, shadowColor, position, borderStyle, spacing, angle, bold, italic, 
+		marginL, marginR, marginV, fade, highlight
+		} = req.query;
 
 	// Fetch list of background images
 	const BACKGROUND_DIR = path.join(__dirname, "images"); // Directory of images
@@ -183,6 +239,18 @@ app.get("/preview", async (req, res) => {
     // Convert text formatting
     const fontWeight = bold === "-1" ? 700 : 400;
     const fontStyle = italic === "1" ? 1 : 0;
+	let subtitleText = decodeURIComponent(text);
+	if (highlight === "1")  // show an example of a highlighted word
+	{
+		let words = subtitleText.split(/\s+/); // Split by whitespace
+		let middleIndex = Math.floor(words.length / 2); // Find the middle word index
+
+		if (words.length > 0) {
+			words[middleIndex] = `{\\c${convertColor(secondaryColor)}}${words[middleIndex]}{\\c${convertColor(color)}}`;  // highlight one word in, then turn font color back to normal
+		}
+
+		subtitleText = words.join(" "); // Reconstruct sentence		
+	}
 
     // Generate ASS subtitle file
     const assContent = `[Script Info]
@@ -196,24 +264,37 @@ Style: Default,${decodeURIComponent(font)},${size},${convertColor(color)},${conv
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,${decodeURIComponent(text)}`;
+Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,${subtitleText}`;
 
     fs.writeFileSync(assPath, assContent);
 
     // Run FFmpeg to generate preview using the background image
     ffmpeg()
         .input(backgroundImage) // Use image instead of black frame
-        .input(assPath)
-        .output(outputPath)
-        .complexFilter("[1]scale=1920:1080[sub]; [0][sub] overlay")
+		.input(assPath)
+		.output(outputPath)
+		.videoFilters(`subtitles=${assPath}`)
         .frames(1)
+		.outputOptions([
+			'-preset ultrafast',  // Use the least compression for max speed
+			'-b:v 3M',            // Allow a higher bitrate for better performance
+			'-pix_fmt yuv420p',    // This format supports subtitle rendering, some don't.
+			'-tune zerolatency',   // Eliminates buffering delays
+			'-movflags faststart' // Optimize MP4 playback without rewriting the whole file
+		])
+		.on('start', (command) => console.log(`FFmpeg command: ${command}`))
+		.on('stderr', (stderr) => console.log(`FFmpeg log: ${stderr}`))
         .on("end", () => {
+			console.log(`Sending back preview image.`);
             res.sendFile(outputPath, () => {
                 fs.unlinkSync(assPath);
                 fs.unlinkSync(outputPath);
             });
         })
-        .on("error", (err) => res.status(500).send("Error generating preview: " + err.message))
+        .on("error", (err) => { 
+				console.log("Error generating preview: " + err.message);
+				res.status(500).send("Error generating preview: " + err.message); 
+			})
         .run();
 });
 

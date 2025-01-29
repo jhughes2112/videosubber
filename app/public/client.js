@@ -18,6 +18,19 @@ async function loadFonts() {
     }
 }
 
+function measureFontHeight(fontFamily, fontSize) {
+    const canvas = document.getElementById("fontCanvas");
+    const ctx = canvas.getContext("2d");
+
+    ctx.font = `${fontSize}px '${fontFamily}'`;
+    const text = "H";
+    const metrics = ctx.measureText(text);
+	const fontHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+	console.log(`Measured ${fontFamily} at size ${fontSize} to be ${fontHeight}`);
+
+    return fontHeight;
+}
+
 async function loadFont(fontFamily) {
     try {
         // Create a @font-face rule dynamically
@@ -50,6 +63,9 @@ function syncSliderWithInput(sliderId, inputId) {
 function toggleButton(buttonId, inputId, activeValue, inactiveValue) {
     const button = document.getElementById(buttonId);
     const input = document.getElementById(inputId);
+	if (input.value == activeValue) {
+		button.classList.add("active");
+	}
 
     button.addEventListener("click", () => {
         const isActive = input.value == activeValue;
@@ -59,7 +75,7 @@ function toggleButton(buttonId, inputId, activeValue, inactiveValue) {
     });
 }
 
-async function updatePreview() {
+async function updatePreviewOp() {
     const text = encodeURIComponent("it's about learning to dance in the rain");
     const fontFamily = encodeURIComponent(document.getElementById("fontFamily").value);
     const fontSize = document.getElementById("fontSizeRange").value;
@@ -79,13 +95,31 @@ async function updatePreview() {
  	const borderStyle = document.getElementById("borderStyle").value;
 	const secondaryColor = document.getElementById("secondaryColor").value.replace("#", ""); // Remove #
 	const backgroundColor = document.getElementById("backgroundColor").value.replace("#", ""); // Remove #
+    const highlight = document.getElementById("highlightEnabled").value;
+    const fade = document.getElementById("fadeEnabled").value;
+
+	// Determine the scaling required to make the fonts all appear the same size for the same numerical value on the slider (relative to Arial).
+	const referenceFont = "Arial"; // Use Arial as the base size comparison
+	const referenceHeight = measureFontHeight(referenceFont, fontSize);
+	const currentHeight = measureFontHeight(fontFamily, fontSize);
+
+	// Scale the font size based on its actual height
+	const scaleFactor = referenceHeight / currentHeight;
+	const normalizedFontSize = Math.round(fontSize * scaleFactor);
 
     // Send the request to the server
-    const response = await fetch(`/preview?text=${text}&font=${fontFamily}&size=${fontSize}&color=${fontColor}&outline=${outlineSize}&outlineColor=${outlineColor}&shadow=${shadowSize}&shadowColor=${shadowColor}&position=${position}&spacing=${spacing}&angle=${angle}&bold=${bold}&italic=${italic}&marginL=${marginL}&marginR=${marginR}&marginV=${marginV}&secondaryColor=${secondaryColor}&backgroundColor=${backgroundColor}&borderStyle=${borderStyle}`);
+    const response = await fetch(`/preview?text=${text}&font=${fontFamily}&size=${normalizedFontSize}&color=${fontColor}&outline=${outlineSize}&outlineColor=${outlineColor}&shadow=${shadowSize}&shadowColor=${shadowColor}&position=${position}&spacing=${spacing}&angle=${angle}&bold=${bold}&italic=${italic}&marginL=${marginL}&marginR=${marginR}&marginV=${marginV}&secondaryColor=${secondaryColor}&backgroundColor=${backgroundColor}&borderStyle=${borderStyle}&fade=${fade}&highlight=${highlight}`);
 
     if (response.ok) {
         document.getElementById("subtitlePreview").src = URL.createObjectURL(await response.blob());
     }
+}
+
+// This gets called anytime a control is modified.
+let previewTimer;
+function updatePreview() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => { updatePreviewOp();}, 150);
 }
 
 // After the page loads, do many things
@@ -102,6 +136,8 @@ window.addEventListener("DOMContentLoaded", () => {
 	// Initialize toggle buttons
 	toggleButton("boldButton", "bold", "-1", "0");
 	toggleButton("italicButton", "italic", "1", "0");
+	toggleButton("highlightButton", "highlightEnabled", "1", "0");
+	toggleButton("fadeButton", "fadeEnabled", "100", "0");
 
     // Set default colors
     document.getElementById("fontColor").value = "#FFFFFF"; // White text
@@ -110,8 +146,8 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("secondaryColor").value = "#C6E62C"; // Yellow-green highlight
 
     // Set default numeric values
-    document.getElementById("fontSize").value = 60;
-    document.getElementById("fontSizeRange").value = 60;
+    document.getElementById("fontSize").value = 120;
+    document.getElementById("fontSizeRange").value = 120;
     document.getElementById("outline").value = 6;
     document.getElementById("outlineRange").value = 6;
     document.getElementById("shadow").value = 0;
@@ -120,9 +156,9 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("spacingRange").value = 0;
     document.getElementById("angle").value = 0;
     document.getElementById("angleRange").value = 0;
-    document.getElementById("marginL").value = 10;
-    document.getElementById("marginR").value = 10;
-    document.getElementById("marginV").value = 10;
+    document.getElementById("marginL").value = 0;
+    document.getElementById("marginR").value = 0;
+    document.getElementById("marginV").value = 0;
 
 	// Event listener for changing the font dynamically
 	document.getElementById("fontFamily").addEventListener("change", (event) => {
@@ -158,23 +194,25 @@ window.addEventListener("DOMContentLoaded", () => {
 
 		const formData = new FormData();
 		formData.append("srt", file);
-		formData.append("fontFamily", document.getElementById("fontFamily").value || "Arial");
-		formData.append("fontSize", document.getElementById("fontSize").value || 60);
-		formData.append("fontColor", document.getElementById("fontColor").value || "#FFFFFF");
+		formData.append("fontFamily", document.getElementById("fontFamily").value);
+		formData.append("fontSize", document.getElementById("fontSize").value);
+		formData.append("fontColor", document.getElementById("fontColor").value);
 		formData.append("bold", document.getElementById("bold").value);
 		formData.append("italic", document.getElementById("italic").value);
-		formData.append("outline", document.getElementById("outline").value || 2);
-		formData.append("outlineColor", document.getElementById("outlineColor").value || "#000000");
-		formData.append("shadow", document.getElementById("shadow").value || 0);
-		formData.append("spacing", document.getElementById("spacing").value || 0);
+		formData.append("outline", document.getElementById("outline").value);
+		formData.append("outlineColor", document.getElementById("outlineColor").value);
+		formData.append("shadow", document.getElementById("shadow").value);
+		formData.append("spacing", document.getElementById("spacing").value);
 		formData.append("borderStyle", document.getElementById("borderStyle").value);
-		formData.append("secondaryColor", document.getElementById("secondaryColor").value || "#FFFFFF");
-		formData.append("backgroundColor", document.getElementById("backgroundColor").value || "#000000");
-		formData.append("angle", document.getElementById("angle").value || 0);
-		formData.append("position", document.getElementById("position").value || "bottom");
-		formData.append("marginL", document.getElementById("marginL").value || 10);
-		formData.append("marginR", document.getElementById("marginR").value || 10);
-		formData.append("marginV", document.getElementById("marginV").value || 10);
+		formData.append("secondaryColor", document.getElementById("secondaryColor").value);
+		formData.append("backgroundColor", document.getElementById("backgroundColor").value);
+		formData.append("angle", document.getElementById("angle").value);
+		formData.append("position", document.getElementById("position").value);
+		formData.append("marginL", document.getElementById("marginL").value);
+		formData.append("marginR", document.getElementById("marginR").value);
+		formData.append("marginV", document.getElementById("marginV").value);
+		formData.append("highlight", document.getElementById("highlightEnabled").value);
+		formData.append("fade", document.getElementById("fadeEnabled").value);
 	
 		try {
 			document.getElementById("status").textContent = "Processing...";
