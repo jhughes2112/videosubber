@@ -55,10 +55,40 @@ function toggleButton(buttonId, inputId, activeValue, inactiveValue) {
         const isActive = input.value == activeValue;
         input.value = isActive ? inactiveValue : activeValue;
         button.classList.toggle("active", !isActive);
+		updatePreview();
     });
 }
 
-// Load fonts when the page loads
+async function updatePreview() {
+    const text = encodeURIComponent("it's about learning to dance in the rain");
+    const fontFamily = encodeURIComponent(document.getElementById("fontFamily").value);
+    const fontSize = document.getElementById("fontSizeRange").value;
+    const fontColor = document.getElementById("fontColor").value.replace("#", ""); // Remove #
+    const outlineSize = document.getElementById("outlineRange").value;
+    const outlineColor = document.getElementById("outlineColor").value.replace("#", ""); // Remove #
+    const shadowSize = document.getElementById("shadowRange").value;
+    const shadowColor = document.getElementById("backgroundColor").value.replace("#", ""); // Remove #
+    const position = document.getElementById("position").value;
+    const spacing = document.getElementById("spacingRange").value;
+    const angle = document.getElementById("angleRange").value;
+    const bold = document.getElementById("bold").value;
+    const italic = document.getElementById("italic").value;
+    const marginL = document.getElementById("marginL").value;
+    const marginR = document.getElementById("marginR").value;
+    const marginV = document.getElementById("marginV").value;
+ 	const borderStyle = document.getElementById("borderStyle").value;
+	const secondaryColor = document.getElementById("secondaryColor").value.replace("#", ""); // Remove #
+	const backgroundColor = document.getElementById("backgroundColor").value.replace("#", ""); // Remove #
+
+    // Send the request to the server
+    const response = await fetch(`/preview?text=${text}&font=${fontFamily}&size=${fontSize}&color=${fontColor}&outline=${outlineSize}&outlineColor=${outlineColor}&shadow=${shadowSize}&shadowColor=${shadowColor}&position=${position}&spacing=${spacing}&angle=${angle}&bold=${bold}&italic=${italic}&marginL=${marginL}&marginR=${marginR}&marginV=${marginV}&secondaryColor=${secondaryColor}&backgroundColor=${backgroundColor}&borderStyle=${borderStyle}`);
+
+    if (response.ok) {
+        document.getElementById("subtitlePreview").src = URL.createObjectURL(await response.blob());
+    }
+}
+
+// After the page loads, do many things
 window.addEventListener("DOMContentLoaded", () => {
 	loadFonts();
 
@@ -66,6 +96,8 @@ window.addEventListener("DOMContentLoaded", () => {
 	syncSliderWithInput("fontSizeRange", "fontSize");
 	syncSliderWithInput("outlineRange", "outline");
 	syncSliderWithInput("shadowRange", "shadow");
+	syncSliderWithInput("spacingRange", "spacing");
+	syncSliderWithInput("angleRange", "angle");
 
 	// Initialize toggle buttons
 	toggleButton("boldButton", "bold", "-1", "0");
@@ -80,12 +112,14 @@ window.addEventListener("DOMContentLoaded", () => {
     // Set default numeric values
     document.getElementById("fontSize").value = 60;
     document.getElementById("fontSizeRange").value = 60;
-    document.getElementById("outline").value = 2;
-    document.getElementById("outlineRange").value = 2;
+    document.getElementById("outline").value = 6;
+    document.getElementById("outlineRange").value = 6;
     document.getElementById("shadow").value = 0;
     document.getElementById("shadowRange").value = 0;
     document.getElementById("spacing").value = 0;
+    document.getElementById("spacingRange").value = 0;
     document.getElementById("angle").value = 0;
+    document.getElementById("angleRange").value = 0;
     document.getElementById("marginL").value = 10;
     document.getElementById("marginR").value = 10;
     document.getElementById("marginV").value = 10;
@@ -108,6 +142,14 @@ window.addEventListener("DOMContentLoaded", () => {
 			this.textContent = "Advanced Settings ▲";
 		}
 	});
+
+	// Attach event listeners for live updates
+	document.querySelectorAll("input, select").forEach(el => {
+		el.addEventListener("input", updatePreview);
+	});
+
+	// Initial preview update
+	updatePreview();
 
 	document.getElementById("uploadForm").addEventListener("submit", async (e) => {
 		e.preventDefault();

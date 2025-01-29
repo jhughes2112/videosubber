@@ -11,7 +11,8 @@
     "multer": "^1.4.5-lts.1",
     "fluent-ffmpeg": "^2.1.2",
     "ffmpeg-static": "^5.1.0",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "tmp": "^0.2.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"

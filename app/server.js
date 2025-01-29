@@ -5,6 +5,7 @@ const ffmpegStatic = require('ffmpeg-static');
 const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
+const tmp = require("tmp");
 const { execSync } = require('child_process');
 
 function convertColor(hex) {
@@ -157,6 +158,63 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 		})
 		.on('error', (err) => res.status(500).send('Error processing video: ' + err.message))
 		.run();
+});
+
+// Live preview of what the settings do to subtitles.
+app.get("/preview", async (req, res) => {
+    const { text, font, size, color, secondaryColor, outline, outlineColor, backgroundColor, shadow, shadowColor, position, borderStyle, spacing, angle, bold, italic, marginL, marginR, marginV } = req.query;
+
+	// Fetch list of background images
+	const BACKGROUND_DIR = path.join(__dirname, "images"); // Directory of images
+	const images = fs.readdirSync(BACKGROUND_DIR).filter(file => /\.(jpg|jpeg|png)$/i.test(file));
+	if (images.length === 0) {
+		console.log("No background images found in /app/images, cannot do live previews.");
+		return res.status(500).send("No background images found.");
+	}
+
+	// Select background based on current second
+	const selectedBackground = images[new Date().getSeconds() % images.length];
+	const backgroundImage = path.join(BACKGROUND_DIR, selectedBackground);
+
+	// Generate unique temporary filenames
+	const assPath = tmp.tmpNameSync({ postfix: ".ass" });
+	const outputPath = tmp.tmpNameSync({ postfix: ".png" });
+
+    // Convert text formatting
+    const fontWeight = bold === "-1" ? 700 : 400;
+    const fontStyle = italic === "1" ? 1 : 0;
+
+    // Generate ASS subtitle file
+    const assContent = `[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,${decodeURIComponent(font)},${size},${convertColor(color)},${convertColor(secondaryColor)},${convertColor(outlineColor)},${convertColor(backgroundColor)},${fontWeight},${fontStyle},0,0,100,100,${spacing},${angle},${borderStyle},${outline},${shadow},${convertAlignment(position)},${marginL},${marginR},${marginV},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,${decodeURIComponent(text)}`;
+
+    fs.writeFileSync(assPath, assContent);
+
+    // Run FFmpeg to generate preview using the background image
+    ffmpeg()
+        .input(backgroundImage) // Use image instead of black frame
+        .input(assPath)
+        .output(outputPath)
+        .complexFilter("[1]scale=1920:1080[sub]; [0][sub] overlay")
+        .frames(1)
+        .on("end", () => {
+            res.sendFile(outputPath, () => {
+                fs.unlinkSync(assPath);
+                fs.unlinkSync(outputPath);
+            });
+        })
+        .on("error", (err) => res.status(500).send("Error generating preview: " + err.message))
+        .run();
 });
 
 // Fetch all installed font families from Fontconfig
