@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Subber</title>
+	<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Video Subber</h1>
+
+	<form id="uploadForm">
+		<input type="file" id="srtFile" accept=".srt" required>
+
+		<p id="previewText">When the rain falls,</p>
+
+		<!-- Font Family, Size, Color -->
+		<div class="label-input">
+			<label>Font:</label> 
+			<select id="fontFamily" class="dropdown"></select> 
+			<button type="button" id="boldButton" class="toggle-btn">B</button>
+			<button type="button" id="italicButton" class="toggle-btn">I</button>
+			<input type="hidden" id="bold" value="0">
+			<input type="hidden" id="italic" value="0">
+
+			<input type="range" id="fontSizeRange" min="10" max="100" value="60" class="slider">
+			<input type="number" id="fontSize" min="10" max="100" value="60" class="number-input">
+			<input type="color" id="fontColor" class="color-picker">
+		</div>
+
+		<div class="label-input"><label>Highlighted Word:</label> <input type="color" id="secondaryColor" class="color-picker"></div>
+
+		<!-- Outline and Shadow -->
+		<div class="label-input">
+			<label>Outline:</label> 
+			<select id="borderStyle" class="dropdown">
+				<option value="1" selected>Outline</option>
+				<option value="3">Opaque Box</option>
+			</select>
+			<input type="range" id="outlineRange" min="0" max="10" value="2" class="slider">
+			<input type="number" id="outline" min="0" max="10" value="2" class="number-input">
+			<input type="color" id="outlineColor" class="color-picker">
+		</div>
+
+		<div class="label-input"><label>Drop Shadow:</label> 
+			<input type="range" id="shadowRange" min="0" max="10" value="0" class="slider">
+			<input type="number" id="shadow" min="0" max="10" value="0" class="number-input">
+			<input type="color" id="backgroundColor" class="color-picker">
+		</div>
+
+		<div class="label-input"><label>Placement:</label> 
+			<select id="position" class="dropdown">
+				<option value="bottom" selected>Bottom</option>
+				<option value="top">Top</option>
+				<option value="center">Center</option>
+			</select>
+		</div>
+
+		<!-- Other Settings you probably don't want to mess with. -->
+		<button type="button" id="advancedToggle" class="accordion-btn">Advanced Settings ▼</button>
+		<div id="advancedSettings" class="accordion-content">
+			<div class="label-input"><label>Character Spacing:</label> <input type="number" id="spacing" placeholder="0" class="number-input"></div>
+			<div class="label-input"><label>Text Angle (CCW):</label> <input type="number" id="angle" placeholder="0" class="number-input"></div>
+			<div class="label-input">
+				<label>Margins:</label>
+				<p>Left:</p>
+				<input type="number" id="marginL" placeholder="10" class="number-input">
+				<p>Right:</p>
+				<input type="number" id="marginR" placeholder="10" class="number-input">
+				<p>Vertical:</p>
+				<input type="number" id="marginV" placeholder="10" class="number-input">
+			</div>
+		</div>
+		
+		<button type="submit">Generate Video</button>
+	</form>
+
+    <p id="status"></p>
+
+	<script src="client.js"></script>
+</body>
+</html>

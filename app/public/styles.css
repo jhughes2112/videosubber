@@ -1,0 +1,237 @@
+/* General Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+/* Body Styling */
+body {
+    background-color: #f4f4f4;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* Title */
+h1 {
+    font-size: 1.8rem;
+    margin-bottom: 15px;
+    color: #222;
+}
+
+/* Form Container */
+form {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    width: 100%;
+    max-width: 700px;
+    gap: 5px;
+}
+
+/* Generic Label & Input Pair */
+.label-input {
+    display: flex;
+    align-items: center;
+    justify-content: right;
+    width: 100%;
+    gap: 5px;
+}
+
+label {
+	flex: 1;
+}
+
+/* Dropdowns */
+select {
+    width: 170px;
+    padding: 3px;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    transition: border-color 0.3s ease;
+}
+
+select:focus {
+    border-color: #007BFF;
+    outline: none;
+}
+
+/* Number Inputs */
+input[type="number"] {
+    width: 60px;
+    padding: 8px;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+input[type="number"]:focus {
+    border-color: #007BFF;
+}
+
+/* Sliders */
+input[type="range"] {
+    width: 160px;
+    appearance: none;
+    height: 6px;
+    background: #ddd;
+    border-radius: 10px;
+    outline: none;
+    transition: background 0.3s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #007BFF;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+/* Color Pickers */
+.color-picker {
+    width: 35px;
+    height: 35px;
+    padding: 0;
+    border: none;
+    cursor: pointer;
+    background: transparent;
+}
+
+/* File Input */
+input[type="file"] {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #ddd;
+    background: white;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 0.3s ease;
+}
+
+input[type="file"]:hover {
+    border-color: #555;
+}
+
+/* Preview Text */
+#previewText {
+    width: 100%;
+    font-size: 1.2rem;
+    text-align: center;
+    padding: 10px;
+    background: #ececec;
+    border-radius: 10px;
+}
+
+/* Submit Button */
+button {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    color: white;
+    background-color: #007BFF;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+.toggle-btn {
+    width: 30px;
+    height: 30px;
+    border: 2px solid #ddd;
+    background: #f0f0f0; /* Light gray default */
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.3s ease, border-color 0.3s ease;
+    font-size: 16px;
+    color: black;
+
+    /* Center the text properly */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.toggle-btn:hover {
+    background: #e0e0e0; /* Slightly darker on hover */
+}
+
+.toggle-btn.active {
+    background: #a0a0a0; /* Medium gray when active */
+    border-color: #a0a0a0;
+}
+
+#boldButton {
+    font-weight: bold;
+}
+
+#italicButton {
+    font-style: italic;
+}
+
+/* Accordion Button */
+.accordion-btn {
+    width: 100%;
+    padding: 10px;
+    font-size: 1rem;
+    text-align: left;
+	color: #505050;
+    background: #ddd;
+    border: none;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    border-radius: 5px;
+}
+
+.accordion-btn:hover {
+    background: #ccc;
+}
+
+/* Accordion Content (Hidden by Default) */
+.accordion-content {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.3s ease-out;
+    width: 100%; /* Ensure it takes full width */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Status Message */
+#status {
+    margin-top: 15px;
+    font-size: 1rem;
+    color: #333;
+    text-align: center;
+}
+
+/* Responsive Layout */
+@media (max-width: 500px) {
+    .label-input {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    select, input[type="number"], input[type="range"] {
+        width: 100%;
+    }
+}
