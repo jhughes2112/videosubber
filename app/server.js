@@ -145,8 +145,13 @@ ffmpeg.setFfmpegPath(ffmpegStatic);
 // Serve all files in the /public folder
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.post('/upload', upload.single('srt'), async (req, res) => {
-    if (!req.file) return res.status(400).send('No file uploaded');
+app.post('/upload', upload.fields([{ name: 'video' }, { name: 'subtitles' }]), (req, res) => {
+    const videoPath = req.files['video'][0].path;
+    const srtPath = req.files['subtitles'][0].path;
+
+	if (!req.files['video'] || !req.files['subtitles']) {
+		return res.status(400).send('Both video and subtitle files are required.');
+	}
 
     const {
         fontFamily, fontSize, fontColor,
@@ -155,12 +160,12 @@ app.post('/upload', upload.single('srt'), async (req, res) => {
 		fade, highlight
     } = req.body;
 	
-    const srtPath = req.file.path;
 	const assPath = path.join(path.dirname(srtPath), path.basename(srtPath, path.extname(srtPath)) + '.ass');
 
     // Generate output filename using the same random name as the uploaded file
-	const clientDownloadName =  path.basename(req.file.originalname, path.extname(req.file.originalname)) + '-subs.mov'; // Get user-provided filename without extension
-    const outputPath = path.join('/tmp', path.basename(srtPath) + '.mov');
+	const originalExt = path.extname(req.files['video'][0].originalname);
+	const clientDownloadName = path.basename(req.files['video'][0].originalname, originalExt) + '-subs' + originalExt;  // inject -subs into the filename
+    const outputPath = path.join('/tmp', path.basename(srtPath) + originalExt);  // retain the original file extension, so we don't change the video format
     
     // Build ASS Style
 const assStyle = `[Script Info]
@@ -176,38 +181,29 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
     // Convert SRT to ASS and get the last subtitle's end time
-    console.log(`Converting ${req.file.originalname} from SRT ${srtPath} -> ASS ${assPath}`);
+    console.log(`Converting ${clientDownloadName} from SRT ${srtPath} -> ASS ${assPath}`);
     const srtContent = fs.readFileSync(srtPath, 'utf-8');
 	const parsedEvents = parseSrt(srtContent);
 	const assEvents = convertToAss(parsedEvents, fade, highlight, fontColor, secondaryColor);
 	const lastEndTime = parsedEvents.length > 0 ? parsedEvents[parsedEvents.length - 1].end : "00:00:00.00";
 	fs.writeFileSync(assPath, assStyle + assEvents, 'utf-8');
 
-    // Calculate video duration (last subtitle end time + 5 seconds)
-    const [h, m, s] = lastEndTime.split(':');
-    const durationSeconds = (parseInt(h) * 3600 + parseInt(m) * 60 + parseFloat(s));
-    const duration = new Date(durationSeconds * 1000).toISOString().substr(11, 8);
-
-    console.log(`Generating subtitle video: ${clientDownloadName} with duration ${durationSeconds} -> ${outputPath}`);
+    console.log(`Generating subtitle video: ${clientDownloadName} -> ${outputPath}`);
 
     // Generate Video
 	ffmpeg()
-		.input('color=black:s=1920x1080:r=30')
-		.inputFormat('lavfi')
+		.input(videoPath)
 		.output(outputPath)
-        .duration(durationSeconds) // Set dynamic duration
 		.videoFilters(`ass=${assPath}`)
 		.outputOptions([
-			'-c:v prores_ks',  // Apple ProRes codec with alpha support
-			'-profile:v 4444', // Enables alpha channel in ProRes
-			'-pix_fmt yuva444p10le',  // Alpha channel compatible with ProRes .MOV
+			'-c:a copy'  // Keep original audio
 		])
 		.on('start', (command) => console.log(`FFmpeg command: ${command}`))
 		.on('stderr', (stderr) => console.log(`FFmpeg log: ${stderr}`))
 		.on('end', () => {
 			console.log(`Finished. Automatically downloading now: ${clientDownloadName} from ${outputPath}`);
             // Set correct headers for direct file download
-            res.setHeader('Content-Type', 'video/mov');
+            res.setHeader('Content-Type', `video/${originalExt}`);
             res.setHeader('Content-Disposition', `attachment; filename="${clientDownloadName}"`);
             
             // Stream the file directly in response
@@ -215,6 +211,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             fileStream.pipe(res);
 
             fileStream.on('close', () => {
+                fs.unlinkSync(videoPath);
                 fs.unlinkSync(srtPath);
                 fs.unlinkSync(assPath);
                 fs.unlinkSync(outputPath);
@@ -289,10 +286,6 @@ Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,${subtitleText}`;
 		.output(outputPath)
 		.videoFilters(`ass=${assPath}`)
         .frames(1)
-		.outputOptions([
-			'-profile:v 4444', // Enables alpha channel in ProRes
-			'-pix_fmt yuva444p10le',  // Alpha channel compatible with ProRes .MOV
-		])
 		.on('start', (command) => console.log(`FFmpeg command: ${command}`))
 		.on('stderr', (stderr) => console.log(`FFmpeg log: ${stderr}`))
         .on("end", () => {

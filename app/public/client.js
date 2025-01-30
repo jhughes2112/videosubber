@@ -189,11 +189,14 @@ window.addEventListener("DOMContentLoaded", () => {
 
 	document.getElementById("uploadForm").addEventListener("submit", async (e) => {
 		e.preventDefault();
-		const file = document.getElementById("srtFile").files[0];
-		if (!file) return alert("Please select an SRT file!");
+		const subtitlesFile = document.getElementById("srtFile").files[0];
+		if (!subtitlesFile) return alert("Please select an SRT file!");
+		const videoFile = document.getElementById("videoFile").files[0];
+		if (!videoFile) return alert("Please select a source video!");
 
 		const formData = new FormData();
-		formData.append("srt", file);
+		formData.append("subtitles", subtitlesFile);
+		formData.append("video", videoFile);
 		formData.append("fontFamily", document.getElementById("fontFamily").value);
 		formData.append("fontSize", document.getElementById("fontSize").value);
 		formData.append("fontColor", document.getElementById("fontColor").value);
@@ -225,23 +228,28 @@ window.addEventListener("DOMContentLoaded", () => {
 			if (response.ok) {
 				// Extract filename from response headers
 				const disposition = response.headers.get("Content-Disposition");
-				let filename = "subtitles.mov"; // Default fallback filename
+				let filename = "";
 				if (disposition && disposition.includes("filename=")) {
 					filename = disposition.split("filename=")[1].replace(/"/g, "");
+
+					document.getElementById("status").textContent = "Download starting...";
+					const blob = await response.blob();
+					const downloadUrl = URL.createObjectURL(blob);
+
+					const link = document.createElement("a");
+					link.href = downloadUrl;
+					link.download = filename; // Set the correct filename dynamically
+					document.body.appendChild(link);
+					link.click();
+					document.body.removeChild(link);
+					URL.revokeObjectURL(downloadUrl);
+					document.getElementById("status").textContent = "Download complete!";
 				}
-
-				document.getElementById("status").textContent = "Download starting...";
-				const blob = await response.blob();
-				const downloadUrl = URL.createObjectURL(blob);
-
-				const link = document.createElement("a");
-				link.href = downloadUrl;
-				link.download = filename; // Set the correct filename dynamically
-				document.body.appendChild(link);
-				link.click();
-				document.body.removeChild(link);
-				URL.revokeObjectURL(downloadUrl);
-				document.getElementById("status").textContent = "Download complete!";
+				else
+				{
+					const errorText = "No filename was supplied with the response. Server error?";
+					document.getElementById("status").textContent = "Error: " + errorText;
+				}
 			} else {
 				const errorText = await response.text();
 				document.getElementById("status").textContent = "Error: " + errorText;
