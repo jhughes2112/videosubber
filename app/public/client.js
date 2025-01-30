@@ -225,7 +225,7 @@ window.addEventListener("DOMContentLoaded", () => {
 			if (response.ok) {
 				// Extract filename from response headers
 				const disposition = response.headers.get("Content-Disposition");
-				let filename = "subtitles.mp4"; // Default fallback filename
+				let filename = "subtitles.mov"; // Default fallback filename
 				if (disposition && disposition.includes("filename=")) {
 					filename = disposition.split("filename=")[1].replace(/"/g, "");
 				}

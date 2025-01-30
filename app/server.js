@@ -33,7 +33,8 @@ function convertAlignment(position) {
 function parseSrt(srtContent) {
     const lines = srtContent.split("\n");
     const subtitles = [];
-    let start, end, text = "";
+    let start, end = "00:00:00.000";
+	let text = "";
 
     for (let i = 0; i < lines.length; i++) {
         if (/^\d+$/.test(lines[i])) { // Skip index lines
@@ -65,9 +66,13 @@ function parseSrt(srtContent) {
 }
 
 function convertTime(time) {
-    const [h, m, s] = time.split(':');
-    const [seconds, ms] = s.split(',');
-    return `${h}:${m}:${seconds}.${ms}`;
+    let [h, m, s] = time.split(':');
+    let [sec, ms] = s.split(/[,.]/); // Handles both comma and period as separators
+
+    if (!ms) ms = '000'; // Ensure milliseconds exist
+    ms = ms.padEnd(3, '0').slice(0, 3); // Normalize to exactly 3 digits
+
+    return `${parseInt(h)}:${m}:${sec}.${ms}`;
 }
 
 function timeToMilliseconds(time) {
@@ -76,42 +81,55 @@ function timeToMilliseconds(time) {
     return (parseInt(h) * 3600 + parseInt(m) * 60 + parseInt(seconds)) * 1000 + parseInt(ms);
 }
 
+function millisecondsToCentiseconds(ms) {
+    const h = Math.floor(ms / 3600000); // Hours
+    const m = Math.floor((ms % 3600000) / 60000); // Minutes
+    const s = Math.floor((ms % 60000) / 1000); // Seconds
+    const cs = Math.round((ms % 1000) / 10); // Convert milliseconds to centiseconds
+
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`;
+}
+
 function convertToAss(subtitles, fadeMS, highlight, normalColor, highlightColor) {
     let assEvents = "";
-    const wordFadeInOut = 50; // Fade transition time for word highlights
+	let prevEndTimeMS = 0;  // this is the UNADJUSTED milliseconds.  We only use this to know if we should be fading in subtitles or not.
+	let layerIndex = 0;
 
     subtitles.forEach(({ start, end, text }, index) => {
         const startTimeMS = timeToMilliseconds(start);
         const endTimeMS = timeToMilliseconds(end);
 
         // Calculate fade-in time based on previous line
-        const prevEndTimeMS = index > 0 ? timeToMilliseconds(subtitles[index - 1].end) : 0;
         const actualFadeIn = Math.round(Math.min(fadeMS, startTimeMS - prevEndTimeMS));
 
         // Calculate fade-out time based on next line
         const nextStartTimeMS = index < subtitles.length - 1 ? timeToMilliseconds(subtitles[index + 1].start) : Infinity;
-        const actualFadeOut = Math.round(Math.min(fadeMS, nextStartTimeMS - endTimeMS));
+        const actualFadeOut = Math.round(Math.min(fadeMS, nextStartTimeMS - timeToMilliseconds(end)));
 
         // Construct the fade tag dynamically
         const fadeTag = `{\\fad(${actualFadeIn},${actualFadeOut})}`;
 
         if (highlight === "1") {
-            const words = text.split(/\s+/);
-            if (words.length === 0) return;
+			const words = text.split(/\s+/);
+			if (words.length === 0) return;
 
-            const totalDuration = endTimeMS - startTimeMS;
-            const highlightDuration = totalDuration / words.length; // Time per word
+			const totalDuration = endTimeMS - startTimeMS;
+			const highlightDuration = totalDuration / words.length; // Time per word
 
-            let formattedText = words.map((word, wordIndex) => {
-                const wordStart = Math.round(wordIndex * highlightDuration);
-                const wordEnd = Math.round(wordStart + highlightDuration);
-                return `{\\t(${wordStart},${wordEnd},\\1c${convertColor(highlightColor)})}${word}{\\t(${wordEnd},${wordEnd + wordFadeInOut},\\1c${convertColor(normalColor)})}`;
-            }).join(" ");
+			let formattedText = words.map((word, wordIndex) => {
+				const wordStart = Math.max(1, Math.round(wordIndex * highlightDuration)); // Ensure at least 1ms delay
+				const wordEnd = Math.round(wordStart + highlightDuration);
 
-            assEvents += `Dialogue: 0,${start},${end},Default,,0,0,0,,${fadeTag}${formattedText}\n`;
+				return `{\\r}{\\1c${convertColor(normalColor)}}{\\t(${wordStart},${wordStart},\\1c${convertColor(highlightColor)})}` + 
+					   `{\\t(${wordEnd},${wordEnd},\\1c${convertColor(normalColor)})}` + 
+					   word;
+			}).join(" ");
+
+			assEvents += `Dialogue: 0,${millisecondsToCentiseconds(startTimeMS)},${millisecondsToCentiseconds(endTimeMS)},Default,,0,0,0,,${fadeTag}${formattedText}\n`;
         } else {
-            assEvents += `Dialogue: 0,${start},${end},Default,,0,0,0,,${fadeTag}${text}\n`;
+            assEvents += `Dialogue: 0,${millisecondsToCentiseconds(startTimeMS)},${millisecondsToCentiseconds(endTimeMS)},Default,,0,0,0,,${fadeTag}${text}\n`;
         }
+		prevEndTimeMS = endTimeMS;
     });
 
     return assEvents;
@@ -141,8 +159,8 @@ app.post('/upload', upload.single('srt'), async (req, res) => {
 	const assPath = path.join(path.dirname(srtPath), path.basename(srtPath, path.extname(srtPath)) + '.ass');
 
     // Generate output filename using the same random name as the uploaded file
-	const clientDownloadName =  path.basename(req.file.originalname, path.extname(req.file.originalname)) + '-subs.mp4'; // Get user-provided filename without extension
-    const outputPath = path.join('/tmp', path.basename(srtPath) + '.mp4');
+	const clientDownloadName =  path.basename(req.file.originalname, path.extname(req.file.originalname)) + '-subs.mov'; // Get user-provided filename without extension
+    const outputPath = path.join('/tmp', path.basename(srtPath) + '.mov');
     
     // Build ASS Style
 const assStyle = `[Script Info]
@@ -162,37 +180,34 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     const srtContent = fs.readFileSync(srtPath, 'utf-8');
 	const parsedEvents = parseSrt(srtContent);
 	const assEvents = convertToAss(parsedEvents, fade, highlight, fontColor, secondaryColor);
-	const lastEndTime = parsedEvents.length > 0 ? parsedEvents[parsedEvents.length - 1].end : "00:00:00.000";
+	const lastEndTime = parsedEvents.length > 0 ? parsedEvents[parsedEvents.length - 1].end : "00:00:00.00";
 	fs.writeFileSync(assPath, assStyle + assEvents, 'utf-8');
 
     // Calculate video duration (last subtitle end time + 5 seconds)
     const [h, m, s] = lastEndTime.split(':');
-    const durationSeconds = (parseInt(h) * 3600 + parseInt(m) * 60 + parseFloat(s)) + 5;
+    const durationSeconds = (parseInt(h) * 3600 + parseInt(m) * 60 + parseFloat(s));
     const duration = new Date(durationSeconds * 1000).toISOString().substr(11, 8);
 
-    console.log(`Generating subtitle video: ${clientDownloadName} with duration ${duration} -> ${outputPath}`);
+    console.log(`Generating subtitle video: ${clientDownloadName} with duration ${durationSeconds} -> ${outputPath}`);
 
     // Generate Video
 	ffmpeg()
 		.input('color=black:s=1920x1080:r=30')
 		.inputFormat('lavfi')
-		.input(assPath)
 		.output(outputPath)
-        .duration(duration) // Set dynamic duration
-		.videoFilters(`subtitles=${assPath}`)
+        .duration(durationSeconds) // Set dynamic duration
+		.videoFilters(`ass=${assPath}`)
 		.outputOptions([
-			'-preset ultrafast',  // Use the least compression for max speed
-			'-b:v 3M',            // Allow a higher bitrate for better performance
-			'-pix_fmt yuv420p',    // This format supports subtitle rendering, some don't.
-			'-tune zerolatency',   // Eliminates buffering delays
-			'-movflags faststart' // Optimize MP4 playback without rewriting the whole file
+			'-c:v prores_ks',  // Apple ProRes codec with alpha support
+			'-profile:v 4444', // Enables alpha channel in ProRes
+			'-pix_fmt yuva444p10le',  // Alpha channel compatible with ProRes .MOV
 		])
 		.on('start', (command) => console.log(`FFmpeg command: ${command}`))
 		.on('stderr', (stderr) => console.log(`FFmpeg log: ${stderr}`))
 		.on('end', () => {
 			console.log(`Finished. Automatically downloading now: ${clientDownloadName} from ${outputPath}`);
             // Set correct headers for direct file download
-            res.setHeader('Content-Type', 'video/mp4');
+            res.setHeader('Content-Type', 'video/mov');
             res.setHeader('Content-Disposition', `attachment; filename="${clientDownloadName}"`);
             
             // Stream the file directly in response
@@ -200,8 +215,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             fileStream.pipe(res);
 
             fileStream.on('close', () => {
-//                fs.unlinkSync(srtPath);
-//                fs.unlinkSync(assPath);
+                fs.unlinkSync(srtPath);
+                fs.unlinkSync(assPath);
                 fs.unlinkSync(outputPath);
             });
 		})
@@ -271,16 +286,12 @@ Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,${subtitleText}`;
     // Run FFmpeg to generate preview using the background image
     ffmpeg()
         .input(backgroundImage) // Use image instead of black frame
-		.input(assPath)
 		.output(outputPath)
-		.videoFilters(`subtitles=${assPath}`)
+		.videoFilters(`ass=${assPath}`)
         .frames(1)
 		.outputOptions([
-			'-preset ultrafast',  // Use the least compression for max speed
-			'-b:v 3M',            // Allow a higher bitrate for better performance
-			'-pix_fmt yuv420p',    // This format supports subtitle rendering, some don't.
-			'-tune zerolatency',   // Eliminates buffering delays
-			'-movflags faststart' // Optimize MP4 playback without rewriting the whole file
+			'-profile:v 4444', // Enables alpha channel in ProRes
+			'-pix_fmt yuva444p10le',  // Alpha channel compatible with ProRes .MOV
 		])
 		.on('start', (command) => console.log(`FFmpeg command: ${command}`))
 		.on('stderr', (stderr) => console.log(`FFmpeg log: ${stderr}`))
