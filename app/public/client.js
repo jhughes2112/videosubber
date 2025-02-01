@@ -1,5 +1,5 @@
 // Load the list of font families from the server
-async function loadFonts() {
+async function loadAvailableFonts() {
     try {
         const response = await fetch('/fonts');
         const fonts = await response.json();
@@ -7,15 +7,48 @@ async function loadFonts() {
         const fontDropdown = document.getElementById("fontFamily");
         fontDropdown.innerHTML = ""; // Clear previous options
 
-        fonts.forEach(font => {
+        for (const font of fonts) {
             const option = document.createElement("option");
             option.value = font;
             option.textContent = font;
+
+            try {
+                // We style those that load in browser properly
+                const fontFace = await loadFont(font);
+                option.style.fontFamily = fontFace.family;
+                console.log("Loaded font:", font);
+            } catch (error) {
+                console.error("Failed to load font in browser:", error);
+            }
+
             fontDropdown.appendChild(option);
-        });
+
+			// Set initial dropdown font
+			updateDropdownFont();
+
+			// Listen for font changes
+			fontDropdown.addEventListener("change", updateDropdownFont);
+        }
     } catch (error) {
         console.error("Failed to load fonts:", error);
     }
+}
+
+async function loadFont(fontFamily) {
+	// Create a @font-face rule dynamically
+	const fontUrl = `/font?family=${encodeURIComponent(fontFamily)}`;
+	const fontFace = new FontFace(fontFamily, `url(${fontUrl})`);
+
+	await fontFace.load(); // Wait for the font to load
+	document.fonts.add(fontFace); // Add it to the browser's font list
+	return fontFace;
+}
+
+// Function to apply the selected font to the dropdown itself
+function updateDropdownFont() {
+    const fontDropdown = document.getElementById("fontFamily");
+    const selectedFont = fontDropdown.value;
+    fontDropdown.style.fontFamily = selectedFont;
 }
 
 function measureFontHeight(fontFamily, fontSize) {
@@ -29,22 +62,6 @@ function measureFontHeight(fontFamily, fontSize) {
 	console.log(`Measured ${fontFamily} at size ${fontSize} to be ${fontHeight}`);
 
     return fontHeight;
-}
-
-async function loadFont(fontFamily) {
-    try {
-        // Create a @font-face rule dynamically
-        const fontUrl = `/font?family=${encodeURIComponent(fontFamily)}`;
-        const fontFace = new FontFace(fontFamily, `url(${fontUrl})`);
-
-        await fontFace.load(); // Wait for the font to load
-        document.fonts.add(fontFace); // Add it to the browser's font list
-
-        // Apply the font to the preview text
-        document.getElementById("previewText").style.fontFamily = fontFamily;
-    } catch (error) {
-        console.error("Failed to load font:", error);
-    }
 }
 
 function syncSliderWithInput(sliderId, inputId) {
@@ -75,6 +92,44 @@ function toggleButton(buttonId, inputId, activeValue, inactiveValue) {
     });
 }
 
+function placementGrid() {
+    const gridButtons = document.querySelectorAll(".grid-btn");
+    const placementInput = document.getElementById("placement");
+
+    gridButtons.forEach(button => {
+        button.addEventListener("click", () => {
+            gridButtons.forEach(btn => btn.classList.remove("active"));
+            button.classList.add("active");
+            placementInput.value = button.getAttribute("data-value");
+			updatePreview();
+        });
+    });
+}
+
+function filePickers() {
+    function setupFilePicker(buttonId, inputId, fileNameId) {
+        const button = document.getElementById(buttonId);
+        const input = document.getElementById(inputId);
+        const fileNameSpan = document.getElementById(fileNameId);
+
+        if (button && input) {
+            // Clicking the button triggers the file input
+            button.addEventListener("click", function () {
+                input.click();
+            });
+
+            // Update file name when a file is selected
+            input.addEventListener("change", function () {
+                fileNameSpan.textContent = input.files.length > 0 ? input.files[0].name : "No file selected";
+            });
+        }
+    }
+
+    // Setup for different file inputs
+    setupFilePicker("videoFileButton", "videoFile", "videoFileName");
+    setupFilePicker("srtFileButton", "srtFile", "srtFileName");
+}
+
 async function updatePreviewOp() {
     const text = encodeURIComponent("it's about learning to dance in the rain");
     const fontFamily = encodeURIComponent(document.getElementById("fontFamily").value);
@@ -84,7 +139,7 @@ async function updatePreviewOp() {
     const outlineColor = document.getElementById("outlineColor").value.replace("#", ""); // Remove #
     const shadowSize = document.getElementById("shadowRange").value;
     const shadowColor = document.getElementById("backgroundColor").value.replace("#", ""); // Remove #
-    const position = document.getElementById("position").value;
+    const position = document.getElementById("placement").value;
     const spacing = document.getElementById("spacingRange").value;
     const angle = document.getElementById("angleRange").value;
     const bold = document.getElementById("bold").value;
@@ -124,7 +179,9 @@ function updatePreview() {
 
 // After the page loads, do many things
 window.addEventListener("DOMContentLoaded", () => {
-	loadFonts();
+	loadAvailableFonts();
+	placementGrid();
+	filePickers();
 
 	// Sync sliders and inputs
 	syncSliderWithInput("fontSizeRange", "fontSize");
@@ -210,7 +267,7 @@ window.addEventListener("DOMContentLoaded", () => {
 		formData.append("secondaryColor", document.getElementById("secondaryColor").value);
 		formData.append("backgroundColor", document.getElementById("backgroundColor").value);
 		formData.append("angle", document.getElementById("angle").value);
-		formData.append("position", document.getElementById("position").value);
+		formData.append("position", document.getElementById("placement").value);
 		formData.append("marginL", document.getElementById("marginL").value);
 		formData.append("marginR", document.getElementById("marginR").value);
 		formData.append("marginV", document.getElementById("marginV").value);

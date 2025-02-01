@@ -21,15 +21,6 @@ function convertColor(hex) {
     return `&H00${b}${g}${r}`.toUpperCase(); // Convert to BGR format with full opacity
 }
 
-function convertAlignment(position) {
-    switch (position) {
-        case 'top': return 8; // Top-center
-        case 'center': return 5; // Middle-center
-        case 'bottom': return 2; // Bottom-center
-        default: return 2;
-    }
-}
-
 function parseSrt(srtContent) {
     const lines = srtContent.split("\n");
     const subtitles = [];
@@ -174,7 +165,7 @@ PlayResX: 1920
 PlayResY: 1080
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontFamily},${fontSize},${convertColor(fontColor)},${convertColor(secondaryColor)},${convertColor(outlineColor)},${convertColor(backgroundColor)},${bold},${italic},0,0,100,100,${spacing},${angle},${borderStyle},${outline},${shadow},${convertAlignment(position)},${marginL},${marginR},${marginV},1
+Style: Default,${fontFamily},${fontSize},${convertColor(fontColor)},${convertColor(secondaryColor)},${convertColor(outlineColor)},${convertColor(backgroundColor)},${bold},${italic},0,0,100,100,${spacing},${angle},${borderStyle},${outline},${shadow},${position},${marginL},${marginR},${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -272,7 +263,7 @@ PlayResY: 1080
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${decodeURIComponent(font)},${size},${convertColor(color)},${convertColor(secondaryColor)},${convertColor(outlineColor)},${convertColor(backgroundColor)},${fontWeight},${fontStyle},0,0,100,100,${spacing},${angle},${borderStyle},${outline},${shadow},${convertAlignment(position)},${marginL},${marginR},${marginV},1
+Style: Default,${decodeURIComponent(font)},${size},${convertColor(color)},${convertColor(secondaryColor)},${convertColor(outlineColor)},${convertColor(backgroundColor)},${fontWeight},${fontStyle},0,0,100,100,${spacing},${angle},${borderStyle},${outline},${shadow},${position},${marginL},${marginR},${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
