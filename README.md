@@ -1,6 +1,6 @@
-# VideoSubber
-
-![VideoSubber Logo](readme/videosubber.png)
+<div style="text-align: center;">
+    <img src="readme/videosubber.png" width="300">
+</div>
 
 VideoSubber automates the addition of subtitles to videos, enhancing accessibility for diverse audiences.
 
@@ -12,7 +12,9 @@ VideoSubber automates the addition of subtitles to videos, enhancing accessibili
 
 ## Demo
 
-![Output Demo](readme/output.gif)
+<div style="text-align: center;">
+    <img src="readme/output.gif">
+</div>
 
 *Example output from Videosubber*
 
@@ -42,7 +44,9 @@ VideoSubber automates the addition of subtitles to videos, enhancing accessibili
 5. **Adjust Subtitle Settings:** Anytime a control is adjusted, the server generates a new example of what your subtitles will look like on a random image.
 6. **Generate Video**: This uploads your video and subtitle files to the local server, then automatically downloads a fully subtitled file in the same video format you uploaded.
 
-![Usage Demo](readme/demo.gif)
+<div style="text-align: center;">
+    <img src="readme/demo.gif">
+</div>
 
 *Random clicking*
 
